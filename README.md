@@ -1,97 +1,109 @@
-# Unit / Integration / Contract / Mutation Tests POC 
+# Todo List API - Testing POC
 
-## Integration Test
+A RESTful To-Do List application built with Java and Spring Boot. This project serves as a practical Proof of Concept (POC) demonstrating a multi-layer testing strategy, including **Unit**, **Contract**, **Integration** (using Testcontainers), and **Mutation** testing (using PITest).
 
-- Proofs that some functionality works as expected
-- Covers happy and unhappy paths
-- Boots service, so is slower
+---
 
-## Contract 
+## Tech Stack
 
-- Proofs that the contract (API in this POC) is correct, no change break the contract
-- Use mocks, so is fast
+- **Java**: 26
+- **Framework**: Spring Boot 4.1.2
+  - `spring-boot-starter-webmvc` (REST APIs)
+  - `spring-boot-starter-data-jdbc` (Data persistence)
+  - `spring-boot-starter-validation` (Bean validation)
+- **Database**: PostgreSQL
+- **Build Tool**: Apache Maven (Maven Wrapper included)
+- **Testing & Quality**:
+  - **JUnit 5** & **Mockito**: Unit testing and mocking
+  - **Spring MockMvc**: Controller and contract testing
+  - **Testcontainers**: Containerized PostgreSQL for isolated integration testing
+  - **PITest**: Mutation testing for measuring test suite quality
 
-## Mutation
+---
 
-- Tests of Tests
-  - `./test-mutation.sh`
+## API Endpoints
 
-- First report failed
-```
-================================================================================
-- Statistics
-  ================================================================================
->> Line Coverage (for mutated classes only): 167/189 (88%)
->> 37 tests examined
->> Generated 97 mutations Killed 64 (66%)
->> Mutations with no coverage 33. Test strength 100%
->> Ran 72 tests (0.74 tests per mutation)
-```
-![report-1](resources/report-1.png)
+All endpoints are versioned under `/v1`.
 
-- After tunning
-```xml
-<configuration>
-    <targetClasses>
-        <param>com.gabrielspassos.*</param>
-    </targetClasses>
-    <targetTests>
-        <param>com.gabrielspassos.*</param>
-    </targetTests>
-    <excludedClasses>
-        <param>*Entity</param>
-    </excludedClasses>
-    <outputFormats>
-        <param>HTML</param>
-    </outputFormats>
-    <threads>4</threads>
-    <mutationThreshold>80</mutationThreshold>
-</configuration>
-```
+### Users
 
-```
-================================================================================
-- Statistics
-================================================================================
->> Line Coverage (for mutated classes only): 117/124 (94%)
->> 37 tests examined
->> Generated 53 mutations Killed 51 (96%)
->> Mutations with no coverage 2. Test strength 100%
->> Ran 59 tests (1.11 tests per mutation)
-Enhanced functionality available at https://www.arcmutate.com/
+| Method | Endpoint | Description | Request Body | Response Status |
+|---|---|---|---|---|
+| `POST` | `/v1/users` | Create a new user | `{"name": "user-name"}` | `201 Created` |
+| `GET` | `/v1/users?name={name}` | Retrieve a user by username | _None_ (Query param `name`) | `200 OK` / `404 Not Found` |
 
-Build messages:- 
-* Project uses Spring, but the Arcmutate Spring plugin is not present. (https://docs.arcmutate.com/docs/spring.html)
-[INFO] ------------------------------------------------------------------------
-[INFO] BUILD SUCCESS
-[INFO] ------------------------------------------------------------------------
-```
-![report-2](resources/report-2.png)
+### Lists
 
-## TODO Application
+| Method | Endpoint | Description | Request Body | Response Status |
+|---|---|---|---|---|
+| `POST` | `/v1/users/{userId}/lists` | Create a new list for a user | `{"name": "list-name"}` | `201 Created` / `404 Not Found` |
+| `GET` | `/v1/users/{userId}/lists` | Retrieve the list of a user | _None_ | `200 OK` / `404 Not Found` |
 
-> Grocery TODO List system 
-- [x] add item 
-- [x] remove 
-- [x] mark as done
-- [x] do
-- [x] re-do 
-- [x] listAll
+### Items
 
-## Tests
+| Method | Endpoint | Description | Request Body | Response Status |
+|---|---|---|---|---|
+| `POST` | `/v1/lists/{listId}/items` | Create an item in a list | `{"description": "Buy groceries"}` | `201 Created` / `404 Not Found` |
+| `GET` | `/v1/lists/{listId}/items` | Get all items belonging to a list | _None_ | `200 OK` |
+| `PUT` | `/v1/items/{itemId}` | Update item status (`TO_DO`, `DONE`) | `{"status": "DONE"}` | `200 OK` / `400 Bad Request` / `404 Not Found` |
+| `DELETE` | `/v1/items/{itemId}` | Delete an item by ID | _None_ | `204 No Content` / `404 Not Found` |
 
+---
+
+## Testing Strategy
+
+This project focuses on high test quality and coverage across multiple levels:
+
+1. **Unit Tests**:
+   - Located in `src/test/java/com/gabrielspassos/service/`.
+   - Test business logic (e.g., `ItemServiceTest`) in isolation using JUnit 5 and Mockito.
+
+2. **Contract Tests**:
+   - Located in `src/test/java/com/gabrielspassos/controller/v1/*ContractTest.java`.
+   - Validate API contracts and serialization against JSON schemas/fixtures in `src/test/resources/*.json` using `MockMvc` and `@MockitoBean`.
+
+3. **Integration Tests**:
+   - Located in `src/test/java/com/gabrielspassos/controller/v1/*IntegrationTest.java`.
+   - End-to-end API tests running against a real PostgreSQL instance started automatically using **Testcontainers** (`schema.sql` initialization).
+
+4. **Mutation Tests (PITest)**:
+   - Injects mutants (code mutations) into compiled classes to verify test suite efficacy.
+   - Configured via `pitest-maven` targeting `com.gabrielspassos.*` with an 80% mutation score threshold.
+
+---
+
+## Running the Project & Tests
+
+### Prerequisites
+- Java 26
+- Docker (required for Testcontainers during integration tests)
+
+### Running the Application
 ```bash
-[INFO] 
-[INFO] Results:
-[INFO] 
-[INFO] Tests run: 55, Failures: 0, Errors: 0, Skipped: 0
-[INFO] 
-[INFO] 
+./mvnw spring-boot:run
 ```
 
-- [x] Unit
-- [x] Integration
-- [x] Contract
-- [x] Mutation
-- [ ] Stress
-- [ ] Chaos
+### Running Tests
+To run all Unit, Contract, and Integration tests:
+```bash
+./mvnw clean install
+# or
+./test.sh
+```
+
+### Running Mutation Tests
+To execute mutation analysis and generate an HTML report under `target/pit-reports`:
+```bash
+./mvnw test-compile org.pitest:pitest-maven:mutationCoverage
+# or
+./test-mutation.sh
+```
+
+#### Mutation Test Reports
+Mutation testing ensures assertions actually detect bugs. Below is the evolution of the mutation test report:
+
+- **Baseline Run**:
+  ![Mutation Report 1](resources/report-1.png)
+
+- **Tuned & Strengthened Suite**:
+  ![Mutation Report 2](resources/report-2.png)
