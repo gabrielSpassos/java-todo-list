@@ -1,0 +1,247 @@
+package com.gabrielspassos.controller.v1;
+
+import com.gabrielspassos.BaseApplicationTest;
+import com.gabrielspassos.entity.ItemEntity;
+import com.gabrielspassos.entity.ItemStatus;
+import com.gabrielspassos.exception.BadRequestException;
+import com.gabrielspassos.exception.NotFoundException;
+import com.gabrielspassos.service.ItemService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.json.JsonCompareMode;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@AutoConfigureMockMvc
+public class ItemControllerContractTest extends BaseApplicationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private ItemService itemService;
+
+    @Test
+    void shouldCreateItem() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/item-response.json"));
+        String listId = "64442a1d-ac0f-48b7-bb78-7366c96b2499";
+
+        ItemEntity itemEntity = new ItemEntity();
+        itemEntity.setId(UUID.fromString("36933325-00a5-4cd1-9d3c-8873d4ca9525"));
+        itemEntity.setListId(UUID.fromString(listId));
+        itemEntity.setStatus(ItemStatus.TO_DO);
+        itemEntity.setDescription("contract-test-item");
+        itemEntity.setCreatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+        itemEntity.setUpdatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+
+        when(itemService.create(listId, "contract-test-item")).thenReturn(itemEntity);
+
+        mockMvc.perform(post("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "description":"contract-test-item"
+                            }
+                        """))
+                .andExpect(status().isCreated())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldFailToCreateItemWithListNonExisting() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/list-not-found-response.json"));
+        String listId = UUID.randomUUID().toString();
+
+        when(itemService.create(listId, "contract-test-item"))
+                .thenThrow(new NotFoundException("List not found", "LIST_NOT_FOUND"));
+
+        mockMvc.perform(post("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "description":"contract-test-item"
+                            }
+                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldUpdateItemStatus() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/item-done-response.json"));
+        String itemId = "36933325-00a5-4cd1-9d3c-8873d4ca9525";
+
+        ItemEntity itemEntity = new ItemEntity();
+        itemEntity.setId(UUID.fromString(itemId));
+        itemEntity.setListId(UUID.fromString("64442a1d-ac0f-48b7-bb78-7366c96b2499"));
+        itemEntity.setStatus(ItemStatus.DONE);
+        itemEntity.setDescription("contract-test-item");
+        itemEntity.setCreatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+        itemEntity.setUpdatedAt(LocalDateTime.parse("2026-05-21T08:40:25"));
+
+        when(itemService.updateStatus(itemId, "DONE")).thenReturn(itemEntity);
+
+        mockMvc.perform(put("/v1/items/{itemId}", itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "status":"DONE"
+                            }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldFailToUpdateItemWithInvalidStatus() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/invalid-status-response.json"));
+        String itemId = "36933325-00a5-4cd1-9d3c-8873d4ca9525";
+
+        when(itemService.updateStatus(itemId, "DONE"))
+                .thenThrow(new BadRequestException("invalid status", "INVALID_STATUS"));
+
+        mockMvc.perform(put("/v1/items/{itemId}", itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "status":"DONE"
+                            }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldFailToUpdateNonExistingItem() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/item-not-found-response.json"));
+        String itemId = UUID.randomUUID().toString();
+
+        when(itemService.updateStatus(itemId, "DONE"))
+                .thenThrow(new NotFoundException("Item not found", "ITEM_NOT_FOUND"));
+
+        mockMvc.perform(put("/v1/items/{itemId}", itemId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                                "status":"DONE"
+                            }
+                        """))
+                .andExpect(status().isNotFound())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldListItems() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/items-response.json"));
+        String listId = "64442a1d-ac0f-48b7-bb78-7366c96b2499";
+
+        ItemEntity itemEntity = new ItemEntity();
+        itemEntity.setId(UUID.fromString("36933325-00a5-4cd1-9d3c-8873d4ca9525"));
+        itemEntity.setListId(UUID.fromString(listId));
+        itemEntity.setStatus(ItemStatus.TO_DO);
+        itemEntity.setDescription("contract-test-item");
+        itemEntity.setCreatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+        itemEntity.setUpdatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+
+        when(itemService.findByListId(listId)).thenReturn(List.of(itemEntity));
+
+        mockMvc.perform(get("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldListMultipleItems() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/multiple-items-response.json"));
+        String listId = "64442a1d-ac0f-48b7-bb78-7366c96b2499";
+
+        ItemEntity itemEntity1 = new ItemEntity();
+        itemEntity1.setId(UUID.fromString("36933325-00a5-4cd1-9d3c-8873d4ca9525"));
+        itemEntity1.setListId(UUID.fromString(listId));
+        itemEntity1.setStatus(ItemStatus.TO_DO);
+        itemEntity1.setDescription("contract-test-item-a");
+        itemEntity1.setCreatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+        itemEntity1.setUpdatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+
+        ItemEntity itemEntity2 = new ItemEntity();
+        itemEntity2.setId(UUID.fromString("26a7012f-2203-4c8b-8c48-10da53c95db8"));
+        itemEntity2.setListId(UUID.fromString(listId));
+        itemEntity2.setStatus(ItemStatus.DONE);
+        itemEntity2.setDescription("contract-test-item-b");
+        itemEntity2.setCreatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+        itemEntity2.setUpdatedAt(LocalDateTime.parse("2026-05-21T08:38:25"));
+
+        when(itemService.findByListId(listId)).thenReturn(List.of(itemEntity1, itemEntity2));
+
+        mockMvc.perform(get("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldListEmptyItems() throws Exception {
+        String expectedResponse = "[]";
+        String listId = "64442a1d-ac0f-48b7-bb78-7366c96b2499";
+
+        when(itemService.findByListId(listId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldFailToListItemsWithInvalidId() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/invalid-id-response.json"));
+        String listId = "invalidId";
+
+        when(itemService.findByListId(listId)).thenThrow(new BadRequestException("invalid id", "INVALID_ID"));
+
+        mockMvc.perform(get("/v1/lists/{listId}/items", listId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+
+    @Test
+    void shouldRemoveItem() throws Exception {
+        String itemId = "36933325-00a5-4cd1-9d3c-8873d4ca9525";
+
+        when(itemService.removeItem(itemId)).thenReturn(true);
+
+        mockMvc.perform(delete("/v1/items/{itemId}", itemId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void shouldFailToRemoveNonExistingItem() throws Exception {
+        String expectedResponse = Files.readString(Path.of("src/test/resources/item-not-found-response.json"));
+        String itemId = UUID.randomUUID().toString();
+
+        when(itemService.removeItem(itemId))
+                .thenThrow(new NotFoundException("Item not found", "ITEM_NOT_FOUND"));
+
+        mockMvc.perform(delete("/v1/items/{itemId}", itemId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(content().json(expectedResponse, JsonCompareMode.LENIENT));
+    }
+}
